@@ -5,10 +5,12 @@
   var KEY_STORE = "deskKey";
   var LAST_STORE = "deskLast";
   var TAB_STORE = "deskTab";
+  var HIDE_INSTALL_STORE = "deskHideInstall";
   var STALE_HOURS = 6;
   var $ = function (id) { return document.getElementById(id); };
   var standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
   var swReg = null;
+  var lastGenerated = null;
 
   // ---------- small helpers ----------
   function store(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
@@ -99,6 +101,7 @@
     projects.forEach(function (p) { counts[p.group] = (counts[p.group] || 0) + 1; });
 
     // updated line + staleness
+    lastGenerated = d.generated_at;
     $("updated").textContent = "Updated " + ago(d.generated_at);
     var old = hoursOld(d.generated_at);
     showBanner(old > STALE_HOURS ? "These statuses are " + ago(d.generated_at).replace(" ago", "") + " old. The next refresh should update them." : null);
@@ -107,8 +110,16 @@
     var c = $("counts");
     c.textContent = "";
     GROUPS.forEach(function (g) {
-      var a = el("a", "count " + g.id + (counts[g.id] ? " on" : ""));
-      a.href = "#g-" + g.id;
+      // A count with nothing behind it is plain text, not a link that goes nowhere.
+      var a = el(counts[g.id] ? "a" : "div", "count " + g.id + (counts[g.id] ? " on" : ""));
+      if (counts[g.id]) {
+        a.href = "#g-" + g.id;
+        a.addEventListener("click", function (e) {
+          e.preventDefault();  // keep the tab in the address, just scroll
+          var h = $("g-" + g.id);
+          if (h) h.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
       a.appendChild(el("b", null, counts[g.id]));
       a.appendChild(el("span", null, g.label));
       c.appendChild(a);
@@ -150,13 +161,27 @@
         t.appendChild(el("span", "name", p.name));
         if (url) t.appendChild(el("span", "chev", "›"));
         it.appendChild(t);
-        (p.lines || []).slice(0, 2).forEach(function (line) { it.appendChild(el("div", "l", line)); });
+        var lines = (p.lines || []).slice(0, 2);
+        var repos = p.id === "prs" ? prCounts(lines[1]) : null;
+        if (repos) {
+          // One chip per project with how many are waiting, instead of a wall of PR numbers.
+          it.appendChild(el("div", "l", lines[0]));
+          var chips = el("div", "chips");
+          repos.forEach(function (r) {
+            var c = el("span", "chip plain", r.name + " ");
+            c.appendChild(el("b", null, r.n));
+            chips.appendChild(c);
+          });
+          it.appendChild(chips);
+        } else {
+          lines.forEach(function (line) { it.appendChild(el("div", "l", line)); });
+        }
         list.appendChild(it);
       });
       gs.appendChild(list);
     });
 
-    renderNba(d.nba_tonight || []);
+    renderNba(d.nba_tonight || [], (d.nba || {}).games || []);
     renderTrading(d.trading);
     renderNbaTab(d.nba);
     renderPicks(d.picks);
@@ -164,6 +189,18 @@
     var bad = counts.broken + counts.needs;
     tabBadge("status", bad);
     setBadge(bad);
+  }
+
+  // "tradebot #26 #24; spy-0dte #9" -> [{name: "tradebot", n: 2}, {name: "spy-0dte", n: 1}]. Null when the line isn't that shape.
+  function prCounts(line) {
+    if (typeof line !== "string") return null;
+    var out = [];
+    var ok = line.split(";").every(function (part) {
+      var m = /^\s*([A-Za-z0-9._-]+)((?:\s+#\d+)+)\s*$/.exec(part);
+      if (m) out.push({ name: m[1], n: m[2].trim().split(/\s+/).length });
+      return !!m;
+    });
+    return ok && out.length ? out : null;
   }
 
   // ---------- numbers ----------
@@ -329,15 +366,22 @@
     var need = NEEDS.reduce(function (s, k) { return s + (+n[k[0]] || 0); }, 0);
     tabBadge("jobs", need);
     var hero = el("div", "card hero");
-    hero.appendChild(el("div", "label", a.kill_switch ? "Kill switch is ON" : a.submission_enabled ? "Auto-apply is on" : "Auto-apply is off"));
+    var head = el("div", "t");
+    head.appendChild(el("span", "label", "Auto-apply"));
+    head.appendChild(el("span", "chip " + (a.kill_switch ? "bad" : a.submission_enabled ? "good" : ""), a.kill_switch ? "Stopped" : a.submission_enabled ? "On" : "Off"));
+    hero.appendChild(head);
+    if (a.kill_switch) hero.appendChild(el("div", "l", "The kill switch is on, so nothing is sent until you turn it off on the Mac."));
     var st = el("div", "stats");
     st.appendChild(stat("Sent today", apps.submitted_today || 0));
     st.appendChild(stat("Sent total", apps.submitted_total || 0));
     st.appendChild(stat("Tries today", (a.attempts_today || 0) + "/" + (a.daily_cap || 0)));
-    st.appendChild(stat("New jobs 24h", j.new_24h || 0));
+    st.appendChild(stat("New in 24h", j.new_24h || 0));
     hero.appendChild(st);
     hero.appendChild(el("div", "note", "Status from your Mac, " + ago(j.generated_at)));
     box.appendChild(hero);
+    if (hoursOld(j.generated_at) > 24) {
+      box.appendChild(el("div", "banner", "Your Mac last sent a JobBoard status " + ago(j.generated_at) + ", so these counts may be out of date."));
+    }
 
     box.appendChild(el("h2", "sec", "Needs you"));
     var list = el("div", "list");
@@ -365,7 +409,7 @@
     ht.appendChild(el("span", "name", h.overall === "fail" ? "Health check failing" : h.overall === "warn" ? "Health warnings" : "Healthy"));
     hi.appendChild(ht);
     var bits = (h.failing || []).concat(h.warning || []);
-    if (bits.length) hi.appendChild(el("div", "l", bits.join(", ")));
+    if (bits.length) hi.appendChild(el("div", "l", bits.map(function (b) { return String(b).replace(/_/g, " "); }).join(", ")));
     var lr = j.last_run || {};
     hi.appendChild(el("div", "l", "Last run " + (lr.status || "unknown") + (lr.finished_at ? ", " + ago(lr.finished_at) : "") +
       " · sources " + (j.sources_ok || 0) + " ok, " + (j.sources_failed || 0) + " failed" +
@@ -617,12 +661,13 @@
     TABS.forEach(function (t) { $("view-" + t).hidden = t !== name; });
     document.querySelectorAll("#tabbar a[data-tab]").forEach(function (a) { a.classList.toggle("on", a.dataset.tab === name); });
     $("foot").hidden = name !== "status" || $("main").hidden;
-    $("install").hidden = standalone || name !== "status" || $("main").hidden;
+    $("install").hidden = installHidden() || name !== "status" || $("main").hidden;
     $("title").textContent = { status: "Bot Desk", trading: "Trading", nba: "NBA Picks", stocks: "Stocks", jobs: "Jobs" }[name];
     if (name === "stocks") loadStocks(false);
     store(TAB_STORE, name);
     window.scrollTo(0, 0);
   }
+  function installHidden() { return standalone || load(HIDE_INSTALL_STORE) === "1"; }
   function tabBadge(name, n) {
     var b = $("badge-" + name);
     if (!b) return;
@@ -630,7 +675,9 @@
     b.textContent = n > 99 ? "99+" : String(n || "");
   }
 
-  function renderNba(rows) {
+  function renderNba(rows, games) {
+    var tips = {};
+    (games || []).forEach(function (g) { tips[g.away + " @ " + g.home] = g; });
     var sec = $("nba-sec"), box = $("nba");
     box.textContent = "";
     sec.hidden = !rows.length;
@@ -662,6 +709,8 @@
       it.appendChild(el("div", "t", r.pick || ""));
       var meta = [];
       if (r.matchup) meta.push(r.matchup);
+      var g = tips[r.matchup];
+      if (g && !r.started && (!g.status || g.status === "scheduled") && tipTime(g.start_utc)) meta.push(tipTime(g.start_utc));
       if (r.win_pct != null) meta.push(r.win_pct + "% model");
       if (r.price != null) meta.push((r.price > 0 ? "+" : "") + r.price);
       if (r.started) meta.push("started");
@@ -741,7 +790,7 @@
     $("tabbar").hidden = false;
     $("foot").hidden = tabFromHash() !== "status";
     var key = load(KEY_STORE);
-    $("install").hidden = standalone || tabFromHash() !== "status";
+    $("install").hidden = installHidden() || tabFromHash() !== "status";
     $("key-copy").hidden = !key;
   }
 
@@ -769,12 +818,16 @@
       return;
     }
     btn.hidden = false;
+    $("alerts-note").hidden = true;
     if (Notification.permission === "granted") {
       btn.textContent = "Alerts are on · show alert code";
       s.textContent = "Alerts are allowed on this phone.";
     } else if (Notification.permission === "denied") {
-      btn.textContent = "Alerts are blocked";
-      s.textContent = "Alerts were blocked. Turn them on in iPhone Settings > Notifications > Bot Desk.";
+      // Nothing a tap can do here, so say where to fix it instead of showing a dead button.
+      btn.hidden = true;
+      $("alerts-note").hidden = false;
+      $("alerts-note").textContent = "Alerts are blocked on this phone. Turn them on in iPhone Settings > Notifications > Bot Desk.";
+      s.textContent = "Alerts are blocked.";
     } else {
       btn.textContent = "Turn on alerts";
       s.textContent = "Alerts are off.";
@@ -822,8 +875,17 @@
     $("key-copy").addEventListener("click", function () { copyText(load(KEY_STORE) || "", $("key-copy")); });
     $("key-forget").addEventListener("click", function () {
       if (!confirm("Forget the key on this phone? You'll need to paste it again.")) return;
-      store(KEY_STORE, null); store(LAST_STORE, null); setBadge(0); showSetup();
+      // Leave nothing behind: saved statuses, saved stocks, and this phone's alert subscription.
+      store(KEY_STORE, null); store(LAST_STORE, null); store(STOCKS_STORE, null);
+      $("stocks").textContent = ""; stocksAt = 0;
+      $("sub-code").value = ""; $("sub-box").hidden = true;
+      if (/[#&]k=/.test(location.hash)) history.replaceState(null, "", location.pathname + location.search);
+      if (swReg && swReg.pushManager) {
+        swReg.pushManager.getSubscription().then(function (sub) { if (sub) return sub.unsubscribe(); }).catch(function () {});
+      }
+      setBadge(0); showSetup();
     });
+    $("install-hide").addEventListener("click", function () { store(HIDE_INSTALL_STORE, "1"); $("install").hidden = true; });
     $("alerts-btn").addEventListener("click", turnOnAlerts);
     $("sub-copy").addEventListener("click", function () { copyText($("sub-code").value, $("sub-copy")); });
     $("test-note").addEventListener("click", async function () {
@@ -834,6 +896,8 @@
       } catch (e) { $("alerts-state").textContent = "Couldn't show a notification: " + (e && e.message ? e.message : e); }
     });
     document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") refresh(); });
+    // Keep "Updated 5 min ago" honest while the app stays open.
+    setInterval(function () { if (lastGenerated) $("updated").textContent = "Updated " + ago(lastGenerated); }, 60000);
 
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").then(function (r) { swReg = r; }).catch(function () {});
