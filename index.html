@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bot Desk</title>
+<meta name="description" content="Status of every bot and project, with alerts when something breaks.">
+<meta name="theme-color" content="#0e1116">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bot Desk">
+<meta name="referrer" content="no-referrer">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>Bot Desk</h1>
+      <p class="sub" id="updated">Loading…</p>
+    </div>
+    <button class="icon-btn" id="refresh" aria-label="Refresh">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <!-- Setup: shown until this phone has the data key -->
+  <section id="setup" class="card setup" hidden>
+    <h2>Set up this phone</h2>
+    <p>Your statuses are encrypted. Paste the key from your Claude thread once, and this app remembers it.</p>
+    <div class="row">
+      <input id="key-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste key">
+      <button class="btn" id="key-paste">Paste</button>
+    </div>
+    <button class="btn primary wide" id="key-save">Save key</button>
+    <p class="err" id="key-err" hidden></p>
+  </section>
+
+  <!-- Install hint: Safari tab, not yet on the Home Screen -->
+  <section id="install" class="card hint" hidden>
+    <h2>Install as an app</h2>
+    <ol>
+      <li>Tap <b>Share</b> (the square with an up arrow) in Safari.</li>
+      <li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li>
+      <li>Open <b>Bot Desk</b> from your Home Screen.</li>
+    </ol>
+    <p class="muted">If it asks for the key there, tap <b>Copy key</b> here first, then Paste in the app.</p>
+    <button class="btn wide" id="key-copy" hidden>Copy key</button>
+  </section>
+
+  <main id="main" hidden>
+    <nav class="counts" id="counts" aria-label="Summary"></nav>
+
+    <section id="problems-sec">
+      <h2 class="sec">Problems</h2>
+      <div id="problems" class="list"></div>
+    </section>
+
+    <section id="groups"></section>
+
+    <section id="nba-sec" hidden>
+      <h2 class="sec">Tonight's NBA picks</h2>
+      <div id="nba" class="list"></div>
+    </section>
+  </main>
+
+  <footer class="foot" id="foot" hidden>
+    <button class="btn" id="alerts-btn">Turn on alerts</button>
+    <details class="more">
+      <summary>Settings</summary>
+      <div class="more-body">
+        <p class="muted" id="alerts-state"></p>
+        <div id="sub-box" hidden>
+          <p class="muted">Send this alert code to Claude in your thread once, so it knows where to send alerts:</p>
+          <textarea id="sub-code" readonly rows="4"></textarea>
+          <button class="btn wide" id="sub-copy">Copy alert code</button>
+        </div>
+        <button class="btn wide" id="test-note">Show a test notification</button>
+        <button class="btn wide danger" id="key-forget">Forget key on this phone</button>
+        <p class="muted small" id="version"></p>
+      </div>
+    </details>
+  </footer>
+</div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
