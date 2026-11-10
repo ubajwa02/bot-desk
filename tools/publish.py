@@ -246,6 +246,43 @@ def fetch_nba():
         return None
 
 
+FD_NBA = "https://sportsbook.fanduel.com/navigation/nba"
+
+
+def _fd_parlay(urls):
+    """Join FanDuel addToBetslip links (marketId/selectionId) into one slip, the same way the collector builds parlays."""
+    from urllib.parse import urlparse, parse_qs, quote
+    pairs = []
+    for u in urls:
+        q = parse_qs(urlparse(u).query)
+        m, sel = (q.get("marketId") or [""])[0], (q.get("selectionId") or [""])[0]
+        if not (m and sel):
+            return None
+        pairs.append((m, sel))
+    return "https://sportsbook.fanduel.com/addToBetslip?" + "&".join(
+        f"marketId[{i}]={quote(m, safe='')}&selectionId[{i}]={quote(sel, safe='')}" for i, (m, sel) in enumerate(pairs))
+
+
+def fill_fd(rows: list) -> list:
+    """Every pick gets a FanDuel button. Where FanDuel's feed has no slip for that exact bet, the button opens FanDuel's
+    NBA page and says so ("not on FD slip"), and the all-straights slip is built from the picks FanDuel does offer."""
+    rows = [dict(r) for r in rows]
+    slips = [r for r in rows if r.get("kind") == "pick" and not r.get("started") and r.get("fd_url") and "slip" in (r.get("fd_label") or "")]
+    picks = [r for r in rows if r.get("kind") == "pick" and not r.get("started")]
+    for r in rows:
+        if r.get("fd_url"):
+            continue
+        if r.get("kind") == "all" and len(slips) >= 2:
+            u = _fd_parlay([x["fd_url"] for x in slips])
+            if u:
+                r["fd_url"], r["fd_label"] = u, f"FD {len(slips)} of {len(picks)} on slip"
+                continue
+        if r.get("kind") in ("pick", "leg", "parlay", "all"):
+            r["fd_url"], r["fd_label"] = FD_NBA, "FD (not on FD slip)"
+            r["fd_missing"] = True
+    return rows
+
+
 def payload(latest: dict, job_status: dict | None = None, nba_site: dict | None = None) -> dict:
     """Status tab: problems, project rows (no numbers). Trading, Picks and Jobs tabs: their own sections."""
     projects = []
@@ -260,7 +297,7 @@ def payload(latest: dict, job_status: dict | None = None, nba_site: dict | None 
         "generated_at": latest.get("generated_at"),
         "alerts": [{k: a.get(k) for k in ALERT_FIELDS} for a in latest.get("alerts") or []],
         "projects": projects,
-        "nba_tonight": [{k: r.get(k) for k in NBA_FIELDS} for r in tonight],
+        "nba_tonight": fill_fd([{k: r.get(k) for k in NBA_FIELDS} for r in tonight]),
         "trading": trading(latest),
         "picks": picks(latest),
         "nba": nba(nba_site),

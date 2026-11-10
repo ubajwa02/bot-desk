@@ -650,7 +650,7 @@
       [["dk_url", "dk_label", "DK"], ["fd_url", "fd_label", "FD"]].forEach(function (k) {
         var u = safeUrl(r[k[0]]);
         if (!u) return;
-        var a = el("a", "btn", r[k[1]] || k[2]);
+        var a = el("a", "btn" + (k[2] === "FD" && r.fd_missing ? " soft" : ""), r[k[1]] || k[2]);
         a.href = u; a.target = "_blank"; a.rel = "noopener";
         links.appendChild(a);
       });

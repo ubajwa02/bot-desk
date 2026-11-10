@@ -87,6 +87,19 @@ class PublishTest(unittest.TestCase):
         self.assertEqual((spy["usd"], spy["line"][-1], spy["trades"][0]["variant"]), (15.0, ["2026-11-05", 15.0], "SPY b"))
         self.assertEqual((t["total"]["usd"], t["total"]["last_day"], t["total"]["usd_last"]), (220.0, "2026-11-05", -5.0))
 
+    def test_every_pick_gets_fd(self):
+        fd = "https://sportsbook.fanduel.com/addToBetslip?marketId=42.{}&selectionId={}"
+        rows = [{"kind": "all", "pick": "All 3"},
+                {"kind": "pick", "pick": "A", "fd_url": fd.format(1, 11), "fd_label": "FD slip"},
+                {"kind": "pick", "pick": "B", "fd_url": fd.format(2, 22), "fd_label": "FD slip"},
+                {"kind": "pick", "pick": "C"}]
+        out = publish.fill_fd(rows)
+        self.assertTrue(all(r["fd_url"] for r in out))
+        self.assertEqual(out[0]["fd_label"], "FD 2 of 3 on slip")
+        self.assertIn("marketId[1]=42.2&selectionId[1]=22", out[0]["fd_url"])
+        self.assertEqual((out[3]["fd_url"], out[3]["fd_missing"]), (publish.FD_NBA, True))
+        self.assertNotIn("fd_missing", out[1])
+
     def test_jobs_whitelist(self):
         j = publish.jobs({"generated_at": "t", "applications": {"submitted_total": 2, "by_status": {"x": 1}},
                           "needs_you": {"apply_manually": 3}, "titles": ["Secret job"], "automation": {"kill_switch": True}})

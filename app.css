@@ -221,3 +221,4 @@ details.stock .body { margin-top: 8px; }
 details.stock .body p { margin: 8px 0; font-size: 14px; }
 details.stock .body p.do { font-weight: 600; }
 details.stock .btn { display: inline-block; margin-top: 4px; font-size: 14px; padding: 6px 12px; text-decoration: none; }
+.btn.soft { color: var(--muted); font-weight: 500; }
