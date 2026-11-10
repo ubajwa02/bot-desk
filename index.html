@@ -11,6 +11,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Bot Desk">
 <meta name="referrer" content="no-referrer">
+<!-- Only this app's own files may run, and it may only read data from the three addresses it needs. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; manifest-src 'self'; worker-src 'self'; connect-src 'self' https://raw.githubusercontent.com https://api.github.com https://ubajwa02.github.io; base-uri 'none'; form-action 'none'">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -52,6 +54,7 @@
     </ol>
     <p class="muted">If it asks for the key there, tap <b>Copy key</b> here first, then Paste in the app.</p>
     <button class="btn wide" id="key-copy" hidden>Copy key</button>
+    <button class="btn wide soft" id="install-hide">Not now</button>
   </section>
 
   <main id="main" hidden>
@@ -97,6 +100,7 @@
 
   <footer class="foot" id="foot" hidden>
     <button class="btn" id="alerts-btn">Turn on alerts</button>
+    <p class="muted small" id="alerts-note" hidden></p>
     <details class="more">
       <summary>Settings</summary>
       <div class="more-body">
