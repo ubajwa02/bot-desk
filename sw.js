@@ -1,5 +1,5 @@
 /* Bot Desk service worker: offline app shell + push alerts. Data is never cached here (the page keeps its own last copy). */
-var CACHE = "bot-desk-v1.1.1";
+var CACHE = "bot-desk-v1.1.2";
 var SHELL = [
   "./",
   "index.html",

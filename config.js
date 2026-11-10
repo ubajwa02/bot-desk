@@ -1,6 +1,6 @@
 // Public settings only. The data key never goes in this repo: each phone keeps its own copy.
 window.DESK_CONFIG = {
-  version: "1.1.1",
+  version: "1.1.2",
   // Encrypted status file, refreshed by the Team Desk collector. First address that answers wins.
   dataUrls: [
     "https://raw.githubusercontent.com/ubajwa02/bot-desk/data/desk.enc.json",

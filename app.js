@@ -635,7 +635,27 @@
     box.textContent = "";
     sec.hidden = !rows.length;
     var parlayBox = {};
+    var allBox = $("nba-all");
+    allBox.textContent = "";
     rows.forEach(function (r) {
+      if (r.kind === "all") {
+        var card = el("div", "card allslip");
+        card.appendChild(el("div", "label", "Add all tonight's straights"));
+        card.appendChild(el("div", "l", "One tap puts every straight pick on the slip. Bet them as singles."));
+        var bl = el("div", "links");
+        [["dk_url", "dk_label", "DraftKings"], ["fd_url", "fd_label", "FanDuel"]].forEach(function (k) {
+          var u = safeUrl(r[k[0]]);
+          if (!u) return;
+          var a = el("a", "btn primary big");
+          a.href = u; a.target = "_blank"; a.rel = "noopener";
+          a.appendChild(el("b", null, k[2]));
+          a.appendChild(el("span", null, (r[k[1]] || "").replace(/^(DK|FD) /, "")));
+          bl.appendChild(a);
+        });
+        card.appendChild(bl);
+        allBox.appendChild(card);
+        return;
+      }
       var cls = "item pick" + (r.kind === "leg" ? " leg" : "") + (r.started ? " started" : "");
       var it = el("div", cls);
       if (r.kind === "parlay" || r.kind === "all") it.appendChild(el("div", "tag", r.kind === "all" ? "All straights" : "Parlay"));

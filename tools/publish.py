@@ -263,12 +263,27 @@ def _fd_parlay(urls):
         f"marketId[{i}]={quote(m, safe='')}&selectionId[{i}]={quote(sel, safe='')}" for i, (m, sel) in enumerate(pairs))
 
 
+def _dk_parlay(urls):
+    """Join DraftKings ?outcomes= slip links into one link (outcome ids joined with +), as the collector does."""
+    from urllib.parse import urlparse, parse_qs, quote
+    ids = [(parse_qs(urlparse(u).query).get("outcomes") or [""])[0] for u in urls]
+    return "https://sportsbook.draftkings.com/?outcomes=" + "+".join(quote(i, safe="") for i in ids) if ids and all(ids) else None
+
+
 def fill_fd(rows: list) -> list:
     """Every pick gets a FanDuel button. Where FanDuel's feed has no slip for that exact bet, the button opens FanDuel's
     NBA page and says so ("not on FD slip"), and the all-straights slip is built from the picks FanDuel does offer."""
     rows = [dict(r) for r in rows]
-    slips = [r for r in rows if r.get("kind") == "pick" and not r.get("started") and r.get("fd_url") and "slip" in (r.get("fd_label") or "")]
     picks = [r for r in rows if r.get("kind") == "pick" and not r.get("started")]
+    dk = [r for r in picks if r.get("dk_url") and "slip" in (r.get("dk_label") or "")]
+    if not any(r.get("kind") == "all" for r in rows) and len(picks) >= 2:  # the collector adds it only when every pick has both slips
+        rows.insert(0, {"kind": "all", "key": "all-straights", "pick": f"All {len(picks)} straight picks (bet as singles on the slip)"})
+    for r in rows:
+        if r.get("kind") == "all" and not r.get("dk_url") and len(dk) >= 2:
+            u = _dk_parlay([x["dk_url"] for x in dk])
+            if u:
+                r["dk_url"], r["dk_label"] = u, f"DK {len(dk)} of {len(picks)} on slip"
+    slips = [r for r in rows if r.get("kind") == "pick" and not r.get("started") and r.get("fd_url") and "slip" in (r.get("fd_label") or "")]
     for r in rows:
         if r.get("fd_url"):
             continue
@@ -277,7 +292,7 @@ def fill_fd(rows: list) -> list:
             if u:
                 r["fd_url"], r["fd_label"] = u, f"FD {len(slips)} of {len(picks)} on slip"
                 continue
-        if r.get("kind") in ("pick", "leg", "parlay", "all"):
+        if r.get("kind") in ("pick", "leg", "parlay"):
             r["fd_url"], r["fd_label"] = FD_NBA, "FD (not on FD slip)"
             r["fd_missing"] = True
     return rows

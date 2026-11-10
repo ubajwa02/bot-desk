@@ -100,6 +100,16 @@ class PublishTest(unittest.TestCase):
         self.assertEqual((out[3]["fd_url"], out[3]["fd_missing"]), (publish.FD_NBA, True))
         self.assertNotIn("fd_missing", out[1])
 
+    def test_all_straights_dk_built_when_missing(self):
+        dk = "https://sportsbook.draftkings.com/?outcomes={}"
+        rows = [{"kind": "pick", "pick": "A", "dk_url": dk.format("a%231"), "dk_label": "DK slip"},
+                {"kind": "pick", "pick": "B", "dk_url": dk.format("b%232"), "dk_label": "DK slip"},
+                {"kind": "pick", "pick": "C", "dk_url": "https://sportsbook.draftkings.com/event/1", "dk_label": "DK game"}]
+        out = publish.fill_fd(rows)
+        self.assertEqual(out[0]["kind"], "all")
+        self.assertEqual(out[0]["dk_label"], "DK 2 of 3 on slip")
+        self.assertEqual(out[0]["dk_url"], "https://sportsbook.draftkings.com/?outcomes=a%231+b%232")
+
     def test_jobs_whitelist(self):
         j = publish.jobs({"generated_at": "t", "applications": {"submitted_total": 2, "by_status": {"x": 1}},
                           "needs_you": {"apply_manually": 3}, "titles": ["Secret job"], "automation": {"kill_switch": True}})

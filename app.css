@@ -222,3 +222,10 @@ details.stock .body p { margin: 8px 0; font-size: 14px; }
 details.stock .body p.do { font-weight: 600; }
 details.stock .btn { display: inline-block; margin-top: 4px; font-size: 14px; padding: 6px 12px; text-decoration: none; }
 .btn.soft { color: var(--muted); font-weight: 500; }
+.allslip { border-color: var(--accent); }
+.allslip .label { font-weight: 700; font-size: 17px; }
+.allslip .l { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.allslip .links { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.btn.big { display: flex; flex-direction: column; align-items: center; text-decoration: none; padding: 12px 8px; }
+.btn.big b { font-size: 16px; }
+.btn.big span { font-size: 12px; font-weight: 500; opacity: 0.9; }
