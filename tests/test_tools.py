@@ -62,13 +62,77 @@ LATEST = {
 
 
 class PublishTest(unittest.TestCase):
-    def test_payload_groups_and_no_trading(self):
+    def test_payload_groups_and_status_has_no_numbers(self):
         p = publish.payload(LATEST)
         self.assertEqual([x["group"] for x in p["projects"]], ["broken", "needs", "paused", "running", "needs"])
         self.assertEqual(len(p["projects"][0]["lines"]), 2)
-        self.assertNotIn("pnl", json.dumps(p))
-        self.assertNotIn("trades", json.dumps(p))
+        status_only = json.dumps({k: p[k] for k in ("alerts", "projects")})
+        self.assertNotIn("pnl", status_only)
+        self.assertNotIn("usd", status_only)
         self.assertEqual(p["nba_tonight"][0]["pick"], "X")
+        self.assertIsNone(p["nba"])
+        self.assertIsNone(p["jobs"])
+
+    def test_trading_in_dollars(self):
+        latest = dict(LATEST, today="2026-11-10", strategies=[
+            {"id": "signals", "unit": "%", "summary": {"open": 1}, "trades": [
+                {"date": "2026-11-04", "time": "10:00", "symbol": "MU", "state": "closed", "pnl": 3.05, "stop": 1, "entry": 2},
+                {"date": "2026-10-01", "time": "10:00", "symbol": "AMD", "state": "closed", "pnl": -1.0}]},
+            {"id": "spy-a", "name": "SPY a", "unit": "$", "trades": [{"date": "2026-11-04", "state": "closed", "pnl": 20.0}]},
+            {"id": "spy-b", "name": "SPY b", "unit": "$", "trades": [{"date": "2026-11-05", "state": "closed", "pnl": -5.0}]}])
+        t = publish.payload(latest)["trading"]
+        orb, spy = t["systems"]
+        self.assertEqual((orb["usd"], orb["usd_7d"], orb["wins"], orb["losses"], orb["open"]), (205.0, 305.0, 1, 1, 1))
+        self.assertNotIn("stop", orb["trades"][0])           # no raw order levels, just results
+        self.assertEqual((spy["usd"], spy["line"][-1], spy["trades"][0]["variant"]), (15.0, ["2026-11-05", 15.0], "SPY b"))
+        self.assertEqual((t["total"]["usd"], t["total"]["last_day"], t["total"]["usd_last"]), (220.0, "2026-11-05", -5.0))
+
+    def test_every_pick_gets_fd(self):
+        fd = "https://sportsbook.fanduel.com/addToBetslip?marketId=42.{}&selectionId={}"
+        rows = [{"kind": "all", "pick": "All 3"},
+                {"kind": "pick", "pick": "A", "fd_url": fd.format(1, 11), "fd_label": "FD slip"},
+                {"kind": "pick", "pick": "B", "fd_url": fd.format(2, 22), "fd_label": "FD slip"},
+                {"kind": "pick", "pick": "C"}]
+        out = publish.fill_fd(rows)
+        self.assertTrue(all(r["fd_url"] for r in out))
+        self.assertEqual(out[0]["fd_label"], "FD 2 of 3 on slip")
+        self.assertIn("marketId[1]=42.2&selectionId[1]=22", out[0]["fd_url"])
+        self.assertEqual((out[3]["fd_url"], out[3]["fd_missing"]), (publish.FD_NBA, True))
+        self.assertNotIn("fd_missing", out[1])
+
+    def test_all_straights_dk_built_when_missing(self):
+        dk = "https://sportsbook.draftkings.com/?outcomes={}"
+        rows = [{"kind": "pick", "pick": "A", "dk_url": dk.format("a%231"), "dk_label": "DK slip"},
+                {"kind": "pick", "pick": "B", "dk_url": dk.format("b%232"), "dk_label": "DK slip"},
+                {"kind": "pick", "pick": "C", "dk_url": "https://sportsbook.draftkings.com/event/1", "dk_label": "DK game"}]
+        out = publish.fill_fd(rows)
+        self.assertEqual(out[0]["kind"], "all")
+        self.assertEqual(out[0]["dk_label"], "DK 2 of 3 on slip")
+        self.assertEqual(out[0]["dk_url"], "https://sportsbook.draftkings.com/?outcomes=a%231+b%232")
+
+    def test_jobs_whitelist(self):
+        j = publish.jobs({"generated_at": "t", "applications": {"submitted_total": 2, "by_status": {"x": 1}},
+                          "needs_you": {"apply_manually": 3}, "titles": ["Secret job"], "automation": {"kill_switch": True}})
+        self.assertNotIn("Secret", json.dumps(j))
+        self.assertNotIn("by_status", json.dumps(j))
+        self.assertEqual((j["needs_you"]["apply_manually"], j["automation"]["kill_switch"]), (3, True))
+
+    def test_nba_section(self):
+        site = {"meta": {"today": "2026-11-09", "dry_run": True, "last_run": {"at": "x", "ok": True}},
+                "performance": {"posted_leans": {"n": 3, "wins": 2, "losses": 1, "net_units": 0.5, "roi": 0.2,
+                    "by_day": {"2026-11-07": {"net_units": 1.0, "wins": 1, "losses": 0}, "2026-11-08": {"net_units": -0.5, "wins": 1, "losses": 1}},
+                    "by_market": {"prop": {"n": 3, "wins": 2, "losses": 1, "net_units": 0.5}},
+                    "rows": [{"slate": "2026-11-08", "label": "A u1.5", "result": "win", "net_units": 0.55, "player_id": "9"},
+                             {"slate": "2026-11-09", "label": "B", "result": "pending"}]}},
+                "tickets": {"rows": [{"kind": "parlay", "result": "win", "net_units": 1.2, "legs": [1, 2]},
+                                     {"kind": "lotto", "result": "loss", "net_units": -1, "legs": [1, 2, 3, 4, 5]}]},
+                "today": {"date": "2026-11-09", "games": [{"home": "GS", "away": "NO", "start_utc": "2026-11-10T03:00Z", "game_id": "1"}]}}
+        n = publish.nba(site)
+        self.assertEqual(n["line"], [["2026-11-07", 1.0], ["2026-11-08", 0.5]])
+        self.assertEqual((n["last_slate"], n["last_results"][0]["units"]), ("2026-11-08", 0.55))
+        self.assertNotIn("player_id", json.dumps(n))
+        self.assertEqual((n["tickets"]["parlay"]["units"], n["tickets"]["lotto"]["losses"]), (1.2, 1))
+        self.assertEqual(n["games"][0]["home"], "GS")
 
     def test_seal_opens_with_key(self):
         key = b"k" * 32

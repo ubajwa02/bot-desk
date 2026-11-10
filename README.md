@@ -1,8 +1,14 @@
 # Bot Desk
 
-Bot Desk is a small iPhone app (an installable web app) that shows the status of every bot and project:
-what's broken, what needs you, what's running and what's paused, plus tonight's NBA picks with bet-slip links.
-It shows statuses only, no trading numbers.
+Bot Desk is a small iPhone app (an installable web app): one Home Screen icon for everything, with five tabs.
+
+| Tab | What it shows | Where the data comes from |
+| --- | --- | --- |
+| **Status** | What's broken, needs you, running or paused, plus problems. Statuses only, no numbers. | Team Desk collector (`latest.json`), encrypted |
+| **Trading** | ORB Signals, Contra-ORB, SPY 0DTE: total, last 7 days, last session, running line, recent trades, in $ | Team Desk collector, encrypted |
+| **NBA** | Record since start, tonight's games, picks with DK/FD bet-slip links, last night's results, parlays and lotto, by market, by day. Soccer below. | nba-picks `site/data.json` + collector, encrypted |
+| **Stocks** | Tech-market mood, coming events, why stocks moved, your stocks with the call and what to wait for | Fundamental Researcher's public snapshot (`fr-dashboard/data/home.json`) |
+| **Jobs** | JobBoard counts: sent, needs you, tries, health, kill switch. Never job titles or employers. | JobBoard's counts-only `status.json`, encrypted |
 
 ## Install on iPhone
 
@@ -16,9 +22,12 @@ It shows statuses only, no trading numbers.
 
 ```
 Team Desk collector (Claude, 6x a day)
-   └─ latest.json ──> tools/publish.py ──┬─> desk.enc.json on the `data` branch (AES-256-GCM, encrypted)
+   └─ latest.json ──┐
+nba-picks data.json ┼─> tools/publish.py ──┬─> desk.enc.json on the `data` branch (AES-256-GCM, encrypted)
+JobBoard status.json┘
                                          └─> Web Push alert to each phone, only for new problems
 iPhone app (this repo, GitHub Pages) ──> fetches desk.enc.json ──> decrypts on the phone with its key
+                                    └─> Stocks tab reads ubajwa02.github.io/fr-dashboard/data/home.json (already public)
 ```
 
 * **Hosting:** GitHub Pages from `main` (root). Free for a public repo.
@@ -44,3 +53,6 @@ iPhone app (this repo, GitHub Pages) ──> fetches desk.enc.json ──> decry
 ```
 python3 -I tools/publish.py all --latest latest.json --secrets <private secrets folder>
 ```
+
+`publish.py` reads nba-picks `site/data.json` and JobBoard's `status.json` with `gh` (both private repos). If either
+can't be read, that tab says so and everything else still publishes. `--nba FILE` / `--jobs FILE` use local copies.
