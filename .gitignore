@@ -1,0 +1,6 @@
+# Never commit secrets: the data key, alert-signing key and phone subscriptions live outside this repo.
+*.key
+*.pem
+push-subs.json
+desk.enc.json
+__pycache__/
