@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bot Desk</title>
-<meta name="description" content="Status of every bot and project, with alerts when something breaks.">
+<meta name="description" content="Status of every bot and project, trading results, NBA picks, stocks and JobBoard, with alerts when something breaks.">
 <meta name="theme-color" content="#0e1116">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -20,7 +20,7 @@
 <div class="app">
   <header class="top">
     <div>
-      <h1>Bot Desk</h1>
+      <h1 id="title">Bot Desk</h1>
       <p class="sub" id="updated">Loading…</p>
     </div>
     <button class="icon-btn" id="refresh" aria-label="Refresh">
@@ -55,19 +55,43 @@
   </section>
 
   <main id="main" hidden>
-    <nav class="counts" id="counts" aria-label="Summary"></nav>
+    <!-- Status tab: statuses only, no numbers -->
+    <div class="view" id="view-status" data-tab="status">
+      <nav class="counts" id="counts" aria-label="Summary"></nav>
 
-    <section id="problems-sec">
-      <h2 class="sec">Problems</h2>
-      <div id="problems" class="list"></div>
-    </section>
+      <section id="problems-sec">
+        <h2 class="sec">Problems</h2>
+        <div id="problems" class="list"></div>
+      </section>
 
-    <section id="groups"></section>
+      <section id="groups"></section>
+    </div>
 
-    <section id="nba-sec" hidden>
-      <h2 class="sec">Tonight's NBA picks</h2>
-      <div id="nba" class="list"></div>
-    </section>
+    <!-- Trading tab: results per system in dollars -->
+    <div class="view" id="view-trading" data-tab="trading" hidden>
+      <div id="trading"></div>
+    </div>
+
+    <!-- NBA tab: record, tonight's games and picks with bet-slip links, last results, parlays -->
+    <div class="view" id="view-nba" data-tab="nba" hidden>
+      <div id="nba-top"></div>
+      <section id="nba-sec" hidden>
+        <h2 class="sec" id="nba-picks-title">Tonight's picks</h2>
+        <div id="nba" class="list"></div>
+      </section>
+      <div id="nba-more"></div>
+      <div id="picks"></div>
+    </div>
+
+    <!-- Stocks tab: Fundamental Researcher's key facts (its public snapshot) -->
+    <div class="view" id="view-stocks" data-tab="stocks" hidden>
+      <div id="stocks"></div>
+    </div>
+
+    <!-- Jobs tab: JobBoard counts from the Mac -->
+    <div class="view" id="view-jobs" data-tab="jobs" hidden>
+      <div id="jobs"></div>
+    </div>
   </main>
 
   <footer class="foot" id="foot" hidden>
@@ -87,6 +111,13 @@
       </div>
     </details>
   </footer>
+  <nav class="tabbar" id="tabbar" aria-label="Sections" hidden>
+    <a href="#status" data-tab="status" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h3l2-5 4 10 2-5h5"/></svg><span>Status</span><i class="badge" id="badge-status" hidden></i></a>
+    <a href="#trading" data-tab="trading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l5-6 4 3 7-9"/><path d="M15 6h5v5"/></svg><span>Trading</span></a>
+    <a href="#nba" data-tab="nba"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/></svg><span>NBA</span></a>
+    <a href="#stocks" data-tab="stocks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M10 19V5M15 19v-7M20 19v-11"/></svg><span>Stocks</span></a>
+    <a href="#jobs" data-tab="jobs"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="2"/><path d="M9 7V5h6v2"/></svg><span>Jobs</span><i class="badge" id="badge-jobs" hidden></i></a>
+  </nav>
 </div>
 <script src="config.js"></script>
 <script src="app.js"></script>

@@ -1,7 +1,7 @@
 {
   "name": "Bot Desk",
   "short_name": "Bot Desk",
-  "description": "Status of every bot and project, with alerts when something breaks.",
+  "description": "Status of every bot and project, trading results, NBA picks, stocks and JobBoard, with alerts when something breaks.",
   "id": "./",
   "scope": "./",
   "display": "standalone",
