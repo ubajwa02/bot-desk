@@ -18,6 +18,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import time
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -89,43 +90,31 @@ def cmd_build(a):
     return a.out
 
 
-def gh(*args, input_obj=None):
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        if input_obj is not None:
-            json.dump(input_obj, f)
-        name = f.name
-    try:
-        cmd = ["gh", "api", *args] + (["--input", name] if input_obj is not None else [])
-        r = subprocess.run(cmd, capture_output=True, text=True)
-        return r.returncode, (json.loads(r.stdout) if r.stdout.strip().startswith(("{", "[")) else r.stdout)
-    finally:
-        os.unlink(name)
-
-
 def cmd_upload(a):
-    repo = a.repo
-    content = base64.b64encode(pathlib.Path(a.file).read_bytes()).decode()
-    code, ref = gh(f"repos/{repo}/git/ref/heads/{DATA_BRANCH}")
-    if code != 0:
-        # First run: make `data` an orphan branch holding only the encrypted file.
-        code, tree = gh("-X", "POST", f"repos/{repo}/git/trees",
-                        input_obj={"tree": [{"path": DATA_PATH, "mode": "100644", "type": "blob",
-                                             "content": pathlib.Path(a.file).read_text()}]})
-        if code: raise SystemExit(f"tree failed: {tree}")
-        code, commit = gh("-X", "POST", f"repos/{repo}/git/commits", input_obj={"message": "data: first status file", "tree": tree["sha"], "parents": []})
-        if code: raise SystemExit(f"commit failed: {commit}")
-        code, out = gh("-X", "POST", f"repos/{repo}/git/refs", input_obj={"ref": f"refs/heads/{DATA_BRANCH}", "sha": commit["sha"]})
-        if code: raise SystemExit(f"ref failed: {out}")
-        print(json.dumps({"uploaded": f"{repo}@{DATA_BRANCH}", "created_branch": True}))
-        return
-    code, cur = gh(f"repos/{repo}/contents/{DATA_PATH}?ref={DATA_BRANCH}")
-    body = {"message": "data: refresh", "content": content, "branch": DATA_BRANCH}
-    if code == 0 and isinstance(cur, dict):
-        body["sha"] = cur["sha"]
-    code, out = gh("-X", "PUT", f"repos/{repo}/contents/{DATA_PATH}", input_obj=body)
-    if code:
-        raise SystemExit(f"upload failed: {str(out)[:300]}")
-    print(json.dumps({"uploaded": f"{repo}@{DATA_BRANCH}", "commit": out["commit"]["sha"][:7]}))
+    """Commit the file to the `data` branch with plain git (Claude sessions can push, but not write via the REST API)."""
+    src = pathlib.Path(a.file).resolve()
+    url = f"https://github.com/{a.repo}"
+    with tempfile.TemporaryDirectory() as d:
+        run = lambda *c: subprocess.run(c, cwd=d, capture_output=True, text=True)
+        r = run("git", "clone", "-q", "--depth", "1", "--branch", DATA_BRANCH, url, ".")
+        created = r.returncode != 0
+        if created:  # first run: `data` is an orphan branch holding only the encrypted file
+            run("git", "init", "-q"); run("git", "checkout", "-q", "--orphan", DATA_BRANCH); run("git", "remote", "add", "origin", url)
+        (pathlib.Path(d) / DATA_PATH).write_bytes(src.read_bytes())
+        run("git", "add", DATA_PATH)
+        r = run("git", "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-q", "-m", "data: refresh")
+        if r.returncode != 0 and "nothing to commit" in (r.stdout + r.stderr):
+            print(json.dumps({"uploaded": False, "reason": "unchanged"}))
+            return
+        for wait in (0, 2, 4, 8, 16):
+            time.sleep(wait)
+            r = run("git", "push", "-q", "origin", DATA_BRANCH)
+            if r.returncode == 0:
+                break
+        if r.returncode != 0:
+            raise SystemExit(f"upload failed: {r.stderr.strip()[:300]}")
+        sha = run("git", "rev-parse", "--short", "HEAD").stdout.strip()
+    print(json.dumps({"uploaded": f"{a.repo}@{DATA_BRANCH}", "commit": sha, "created_branch": created}))
 
 
 def subs_path(secrets: pathlib.Path) -> pathlib.Path:
